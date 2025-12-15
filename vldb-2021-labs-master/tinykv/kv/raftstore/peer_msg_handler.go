@@ -618,19 +618,39 @@ func (d *peerMsgHandler) preProposeRaftCommand(req *raft_cmdpb.RaftCmdRequest) e
 }
 
 func (d *peerMsgHandler) proposeRaftCommand(msg *raft_cmdpb.RaftCmdRequest, cb *message.Callback) {
-	panic("not implemented yet")
-	// YOUR CODE HERE (lab1).
-	// Hint1: do `preProposeRaftCommand` check for the command, if the check fails, need to execute the
-	// callback function and return the error results. `ErrResp` is useful to generate error response.
+	// Hint2: 检查peer是否已停止，若是则通知回调（区域已移除）
+	if d.stopped {
+		NotifyReqRegionRemoved(d.regionId, cb)
+		return
+	}
 
-	// Hint2: Check if peer is stopped already, if so notify the callback that the region is removed, check
-	// the `destroy` function for related utilities. `NotifyReqRegionRemoved` is useful to generate error response.
+	// Hint1: 执行前置检查（storeID、peerID、term、epoch等）
+	err := d.preProposeRaftCommand(msg)
+	if err != nil {
+		// 检查失败，生成错误响应并调用回调
+		resp := ErrResp(err)
+		// 初始化Header并设置CurrentTerm（替换原来的Term）
+		if resp.Header == nil {
+			resp.Header = &raft_cmdpb.RaftResponseHeader{}
+		}
+		resp.Header.CurrentTerm = d.Term()
+		cb.Done(resp)
+		return
+	}
 
-	// Hint3: Bind the possible response with term then do the real requests propose using the `Propose` function.
-	// Note:
-	// The peer that is being checked is a leader. It might step down to be a follower later. It
-	// doesn't matter whether the peer is a leader or not. If it's not a leader, the proposing
-	// command log entry can't be committed. There are some useful information in the `ctx` of the `peerMsgHandler`.
+	// Hint3: 绑定CurrentTerm，调用Propose方法提议请求
+	errResp := &raft_cmdpb.RaftCmdResponse{
+		// 初始化Header并设置CurrentTerm
+		Header: &raft_cmdpb.RaftResponseHeader{
+			CurrentTerm: d.Term(), 
+		},
+	}
+	// 调用peer的Propose方法提议请求
+	success := d.peer.Propose(d.ctx.engine.Kv, d.ctx.cfg, cb, msg, errResp)
+	if !success {
+		// 提议失败，调用回调返回错误
+		cb.Done(errResp)
+	}
 }
 
 func (d *peerMsgHandler) findSiblingRegion() (result *metapb.Region) {

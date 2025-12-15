@@ -365,9 +365,12 @@ func (p *peer) HandleRaftReady(msgs []message.Msg, pdScheduler chan<- worker.Tas
 		return nil, msgs
 	}
 
-	// YOUR CODE HERE (lab1). There are some missing code pars marked with `Hint` above, try to finish them.
-	// Hint1: check if there's ready to be processed, if no return directly.
-	panic("not implemented yet")
+	// ========== 新增代码开始（Hint1：检查是否有Ready）==========
+	// 检查RaftGroup是否有Ready需要处理，若无则直接返回
+	if !p.RaftGroup.HasReady() {
+		return nil, msgs
+	}
+	// ========== 新增代码结束 ==========
 
 	// Start to handle the raft ready.
 	log.Debug(fmt.Sprintf("%v handle raft ready", p.Tag))
@@ -423,10 +426,13 @@ func (p *peer) HandleRaftReady(msgs []message.Msg, pdScheduler chan<- worker.Tas
 		}
 	}
 
-	// YOUR CODE HERE (lab1). There are some missing code pars marked with `Hint` above, try to finish them.
-	// Hint2: Try to advance the states in the raft group of this peer after processing the raft ready.
-	//        Check about the `Advance` method in for the raft group.
-	panic("not implemented yet")
+	// ========== 新增代码开始（Hint2：调用Advance推进状态）==========
+	// 处理完Ready后，调用Advance告知RaftGroup
+	p.RaftGroup.Advance(ready)
+	// ========== 新增代码结束 ==========
+
+	// 移除原有的panic
+	// panic("not implemented yet")
 
 	return applySnapResult, msgs
 }
